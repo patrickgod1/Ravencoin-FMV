@@ -58,7 +58,7 @@ Add additional notes about how to deploy this on a live system
 
 * [Python 3.6](https://docs.python.org/3/) - The scripting language used.
 * [Pandas](https://pandas.pydata.org/) - Data structure/anaylsis tool used.
-* [PtQt5](https://pypi.org/project/PyQt5/) - Used to create GUI.
+* [PyQt5](https://pypi.org/project/PyQt5/) - Used to create GUI.
 * [PyInstaller](https://www.pyinstaller.org/) - Used to create executable for release.
 
 <!---
