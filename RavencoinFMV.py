@@ -1,43 +1,19 @@
-import pandas as pd
 import datetime
 import os.path
-import sys
+import pandas as pd
 from PyQt5 import QtCore, QtGui, QtWidgets
-
-
-def updateHistoricalData(currentDate, cwd):
-    url = f"https://coinmarketcap.com/currencies/ravencoin/historical-data/?start=20130428&end={currentDate}"
-    historical = pd.read_html(url, parse_dates=['Date'])[0]
-    historical.to_csv(f'{cwd}\\historicalData.csv')
-
-
-def calcAssets():
-    cwd = os.path.dirname(os.path.abspath(__file__))
-    today = datetime.datetime.utcnow().strftime('%Y%m%d')
-    if os.path.isfile('historicalData.csv'):
-        historical = pd.read_csv(f'{cwd}\\historicalData.csv', parse_dates=['Date'])
-        if(historical.iloc[0]['Date'] < datetime.datetime.strptime(today, '%Y%m%d')):
-            updateHistoricalData(today, cwd)
-    else:
-        updateHistoricalData(today, cwd)
-
-    export = pd.read_csv(f'{cwd}\\export.csv', usecols=['Date', 'Type', 'Label', 'Amount (RVN)'], parse_dates=['Date'])
-    export['Date'] = pd.to_datetime(export['Date'].dt.strftime('%Y-%m-%d'), format='%Y-%m-%d')
-
-    export = pd.merge(left=export, right=historical[['Date', 'Close**']], how='left', on=['Date'])
-    export['Capital Asset (USD)'] = export['Amount (RVN)'] * export['Close**']
-    export.rename(columns={'Close**': 'FMV (USD)'}, inplace=True)
-    export = export.iloc[::-1].reset_index(drop=True)
-    export.to_csv(f'{cwd}\\capitalAsset.csv')
-
-    yearlySummary = export[['Date', 'Type', 'Label', 'Amount (RVN)', 'Capital Asset (USD)']].groupby(export['Date'].dt.strftime('%Y')).sum()
-    yearlySummary.index.names = ['Year']
-    yearlySummary.to_csv(f'{cwd}\\yearlySummary.csv')
-    with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-        print(yearlySummary)
+from PyQt5.QtWidgets import QFileDialog, QApplication, QWidget, QPushButton, QMessageBox
+import sys
 
 
 class Ui_mainWindow(object):
+    def __init__(self):
+        self.cwd = os.path.dirname(os.path.abspath(__file__))
+        self.exportPath = ''
+        self.savePath = ''
+        self.forceDL = False
+        self.today = datetime.datetime.utcnow().strftime('%Y%m%d')
+
     def setupUi(self, mainWindow):
         mainWindow.setObjectName("mainWindow")
         mainWindow.setWindowModality(QtCore.Qt.NonModal)
@@ -65,7 +41,7 @@ class Ui_mainWindow(object):
         font.setPointSize(14)
         font.setBold(True)
         font.setItalic(False)
-        font.setUnderline(True)
+        font.setUnderline(False)
         font.setWeight(75)
         self.userInputLayout.setFont(font)
         self.userInputLayout.setObjectName("userInputLayout")
@@ -248,6 +224,76 @@ class Ui_mainWindow(object):
         self.downloadCheckbox.setText(_translate("mainWindow", "Force Download Historical Data"))
         self.StartButton.setText(_translate("mainWindow", "Start"))
         self.exitButton.setText(_translate("mainWindow", "Exit"))
+
+        self.browseExportButton.clicked.connect(self.setExportPath)
+        self.browseSaveReportButton.clicked.connect(self.setSavePath)
+        self.downloadCheckbox.toggled.connect(self.downloadState)
+        self.exitButton.clicked.connect(self.exitApp)
+        self.StartButton.clicked.connect(self.startApp)
+
+    def setExportPath(self):
+        self.exportPath, _ = QFileDialog.getOpenFileName(None, "Select Wallet Transactions Export File", "", "Comma-separated Value (*.csv)")
+        self.selectExport.setText(self.exportPath)
+
+    def setSavePath(self):
+        self.savePath = QFileDialog.getExistingDirectory(None, 'Save Report to')
+        self.selectSaveReportPath.setText(self.savePath)
+
+    def downloadState(self):
+        if self.downloadCheckbox.isChecked():
+            self.forceDL = True
+        else:
+            self.forceDL = False
+
+    def exitApp(self):
+        reply = QMessageBox.question(None, 'Exit', "Are you sure you want to exit?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            sys.exit()
+        else:
+            pass
+
+    def startApp(self):
+        if self.exportPath == '':
+            QMessageBox.warning(None, 'No wallet transactons export file found!!!', "Please export you wallet transactions first. Then select the (.csv) file.")
+            return
+        elif self.savePath == '':
+            QMessageBox.warning(None, 'No save path selected.', "Please select where to save the results.")
+            return
+        if self.forceDL == True:
+            self.updateHistoricalData()
+        if self.calcAssets():
+            QMessageBox.information(None, 'Done', f'Done. Please review capitalAsset.csv and yearlySummary.csv in {self.savePath}')
+        else:
+            QMessageBox.critical(None, 'Error', f'Error!!! Something went wrong. Please contact developer(s) with specific instructions on how to reproduce error state. Thanks.')
+
+    def updateHistoricalData(self):
+        url = f"https://coinmarketcap.com/currencies/ravencoin/historical-data/?start=20130428&end={self.today}"
+        historical = pd.read_html(url, parse_dates=['Date'])[0]
+        historical.to_csv(f'{self.cwd}\\historicalData.csv')
+
+    def calcAssets(self):
+        if os.path.isfile(f'{self.cwd}\\historicalData.csv'):
+            historical = pd.read_csv(f'{self.cwd}\\historicalData.csv', parse_dates=['Date'])
+            if(historical.iloc[0]['Date'] < datetime.datetime.strptime(self.today, '%Y%m%d')):
+                self.updateHistoricalData()
+        else:
+            self.updateHistoricalData()
+
+        export = pd.read_csv(self.exportPath, usecols=['Date', 'Type', 'Label', 'Amount (RVN)'], parse_dates=['Date'])
+        export['Date'] = pd.to_datetime(export['Date'].dt.strftime('%Y-%m-%d'), format='%Y-%m-%d')
+
+        export = pd.merge(left=export, right=historical[['Date', 'Close**']], how='left', on=['Date'])
+        export['Capital Asset (USD)'] = export['Amount (RVN)'] * export['Close**']
+        export.rename(columns={'Close**': 'FMV (USD)'}, inplace=True)
+        export = export.iloc[::-1].reset_index(drop=True)
+        export.to_csv(f'{self.savePath}\\capitalAsset.csv')
+
+        yearlySummary = export[['Date', 'Type', 'Label', 'Amount (RVN)', 'Capital Asset (USD)']].groupby(export['Date'].dt.strftime('%Y')).sum()
+        yearlySummary.index.names = ['Year']
+        yearlySummary.to_csv(f'{self.savePath}\\yearlySummary.csv')
+        # with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+        #     print(yearlySummary)
+        return 1
 
 
 if __name__ == "__main__":
