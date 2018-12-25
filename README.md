@@ -24,6 +24,18 @@ pyinstaller RavencoinFMV.spec .\RavencoinFMV.py
 You may need to modify the file paths, if not in same current working directory.
 
 
+### Output Files
+
+Results are saved in .csv files:
+```
+captialAsset.csv
+```
+and
+```
+yearlySummary.csv
+```
+
+
 ## Screenshot
 
 ![ravencoinfmv](https://user-images.githubusercontent.com/41496510/50427361-b51a7680-085a-11e9-968c-1a0dbeedfd04.png)
